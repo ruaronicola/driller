@@ -72,20 +72,20 @@ def request_drilling(fzr):
 
     d_jobs = [ ]
 
-    bitmap_f = os.path.join(fzr.out_dir, "fuzzer-1", "fuzz_bitmap")
+    bitmap_f = os.path.join(fzr.work_dir, "fuzzer-1", "fuzz_bitmap")
     bitmap_data = open(bitmap_f, "rb").read()
     bitmap_hash = hashlib.sha256(bitmap_data).hexdigest()
 
     redis_inst = redis.Redis(connection_pool=redis_pool)
     redis_inst.hset(fzr.binary_id + '-bitmaps', bitmap_hash, bitmap_data)
 
-    in_dir = os.path.join(fzr.out_dir, "fuzzer-1", "queue")
+    in_dir = os.path.join(fzr.work_dir, "fuzzer-1", "queue")
 
     # ignore hidden files
     inputs = filter(lambda d: not d.startswith('.'), os.listdir(in_dir))
 
     # filter inputs which have already been sent to driller
-    inputs = input_filter(os.path.join(fzr.out_dir, "fuzzer-1"), inputs)
+    inputs = input_filter(os.path.join(fzr.work_dir, "fuzzer-1"), inputs)
 
     # submit a driller job for each item in the queue
     for input_file in inputs:
@@ -100,7 +100,7 @@ def start_listener(fzr):
     start a listener for driller inputs
     '''
 
-    driller_queue_dir = os.path.join(fzr.out_dir, "driller", "queue")
+    driller_queue_dir = os.path.join(fzr.work_dir, "driller", "queue")
     channel = "%s-generated" % fzr.binary_id
 
     # find the bin directory listen.py will be installed in

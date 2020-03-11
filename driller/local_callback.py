@@ -1,17 +1,23 @@
 import os
 import sys
 import signal
+import shutil
+import tempfile
+import contextlib
+import time
 import logging.config
-import driller
+from driller import Driller
+from driller.prioritization_techniques import UniqueSearch, HardestSearch
 import argparse
 import subprocess
 import multiprocessing
 
 l = logging.getLogger("local_callback")
+logging.getLogger("cle.backends.elf.elf").setLevel("ERROR")
 
 def _run_drill(drill, fuzz, _path_to_input_to_drill, length_extension=None):
-    _binary_path = fuzz.binary_path
-    _fuzzer_out_dir = fuzz.out_dir
+    _binary_path = fuzz.target
+    _fuzzer_out_dir = fuzz.work_dir
     _bitmap_path = os.path.join(_fuzzer_out_dir, 'fuzzer-master', "fuzz_bitmap")
     _timeout = drill._worker_timeout
     l.warning("starting drilling of %s, %s", os.path.basename(_binary_path), os.path.basename(_path_to_input_to_drill))
@@ -24,17 +30,20 @@ def _run_drill(drill, fuzz, _path_to_input_to_drill, length_extension=None):
         args += ('--length-extension', str(length_extension))
 
     p = subprocess.Popen(args, stdout=subprocess.PIPE)
-    print(p.communicate())
+    p.communicate()
 
 
 class LocalCallback(object):
-    def __init__(self, num_workers=1, worker_timeout=10*60, length_extension=None):
+    def __init__(self, num_workers=1, worker_timeout=10*60, length_extension=None, prioritization_technique=UniqueSearch):
         self._already_drilled_inputs = set()
 
         self._num_workers = num_workers
         self._running_workers = []
         self._worker_timeout = worker_timeout
         self._length_extension = length_extension
+
+        self.prioritization_technique = prioritization_technique
+        self.t = None
 
     @staticmethod
     def _queue_files(fuzz, fuzzer='fuzzer-master'):
@@ -43,14 +52,15 @@ class LocalCallback(object):
         :return: a list of strings which represent a fuzzer's queue
         '''
 
-        queue_path = os.path.join(fuzz.out_dir, fuzzer, 'queue')
-        queue_files = filter(lambda x: x != ".state", os.listdir(queue_path))
+        queue_path = os.path.join(fuzz.work_dir, fuzzer, 'queue')
+        queue_files = filter(lambda x: x != ".state" and 'sync:driller' not in x, os.listdir(queue_path))
         queue_files = [os.path.join(queue_path, q) for q in queue_files]
 
         return queue_files
 
     def driller_callback(self, fuzz):
-        l.warning("Driller stuck callback triggered!")
+        #l.warning("Driller callback triggered!")
+        if not self.t: self.t = self.prioritization_technique(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch)
         # remove any workers that aren't running
         self._running_workers = [x for x in self._running_workers if x.is_alive()]
 
@@ -62,11 +72,13 @@ class LocalCallback(object):
 
         # start drilling
         not_drilled = set(queue) - self._already_drilled_inputs
+        self.t.update(not_drilled)
+
         if len(not_drilled) == 0:
             l.warning("no inputs left to drill")
 
         while len(self._running_workers) < self._num_workers and len(not_drilled) > 0:
-            to_drill_path = list(not_drilled)[0]
+            to_drill_path = self.t.pop_best(not_drilled=not_drilled)
             not_drilled.remove(to_drill_path)
             self._already_drilled_inputs.add(to_drill_path)
 
@@ -84,6 +96,7 @@ class LocalCallback(object):
             except OSError:
                 pass
 
+
 # this is for running with bash timeout
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Driller local callback")
@@ -93,7 +106,6 @@ if __name__ == "__main__":
     parser.add_argument('path_to_input_to_drill')
     parser.add_argument('--length-extension', help="Try extending inputs to driller by this many bytes", type=int)
     args = parser.parse_args()
-
     logcfg_file = os.path.join(os.getcwd(), '.driller.ini')
     if os.path.isfile(logcfg_file):
         logging.config.fileConfig(logcfg_file)
@@ -117,11 +129,11 @@ if __name__ == "__main__":
         inputs_to_drill.append(inputs_to_drill[0] + b'\0' * args.length_extension)
 
     for input_to_drill in inputs_to_drill:
-        d = driller.Driller(args.binary_path, input_to_drill, fuzzer_bitmap)
+        d = Driller(binary=args.binary_path, input_str=input_to_drill, fuzz_bitmap=fuzzer_bitmap)
         count = 0
         for new_input in d.drill_generator():
             id_num = len(os.listdir(driller_queue_dir))
-            fuzzer_from = args.path_to_input_to_drill.split("sync/")[1].split("/")[0] + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
+            fuzzer_from = args.path_to_input_to_drill.split(fuzzer_out_dir)[1].split("/")[0] + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
             filepath = "id:" + ("%d" % id_num).rjust(6, "0") + ",from:" + fuzzer_from
             filepath = os.path.join(driller_queue_dir, filepath)
             with open(filepath, "wb") as f:

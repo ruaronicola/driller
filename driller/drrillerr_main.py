@@ -8,43 +8,37 @@ import logging
 import binascii
 
 import angr
-import tracer
-from . import config
+import archr
+from trraces.replay_interfaces.angr.technique import Trracer
+
+from driller import config
+from .drrillerr_core import DrrillerrCore
 
 
-l = logging.getLogger("driller.driller")
+logger = logging.getLogger("driller.driller")
 
 
-class Driller(object):
+class Drrillerr(object):
     """
     Driller object, symbolically follows an input looking for new state transitions.
     """
 
-    def __init__(self, binary, input_str, fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
+    def __init__(self, binary, input_str, fuzz_bitmap=None, tag=None, redis=None):
         """
-        :param binary     : The binary to be traced.
         :param input_str  : Input string to feed to the binary.
         :param fuzz_bitmap: AFL's bitmap of state transitions (defaults to empty).
         :param redis      : redis.Redis instance for coordinating multiple Driller instances.
-        :param hooks      : Dictionary of addresses to simprocedures.
-        :param argv       : Optionally specify argv params (i,e,: ['./calc', 'parm1']),
-                            defaults to binary name with no params.
         """
 
-        self.binary      = binary
-
         # Redis channel identifier.
-        self.identifier  = os.path.basename(binary)
-        self.input       = input_str
+        self.binary = binary
+        self.identifier = os.path.basename(binary)
+        self.input = input_str
         self.fuzz_bitmap = fuzz_bitmap
-        self.tag         = tag
-        self.redis       = redis
-        self.argv = argv or [binary]
+        self.tag = tag
+        self.redis = redis
 
         self.base = os.path.join(os.path.dirname(__file__), "..")
-
-        # The simprocedures.
-        self._hooks = {} if hooks is None else hooks
 
         # The driller core, which is now an exploration technique in angr.
         self._core = None
@@ -59,9 +53,9 @@ class Driller(object):
         if config.MEM_LIMIT is not None:
             resource.setrlimit(resource.RLIMIT_AS, (config.MEM_LIMIT, config.MEM_LIMIT))
 
-        l.debug("[%s] drilling started on %s.", self.identifier, time.ctime(self.start_time))
+        logger.debug("[%s] drilling started on %s.", self.identifier, time.ctime(self.start_time))
 
-### DRILLING
+    # DRILLING
 
     def drill(self):
         """
@@ -73,10 +67,10 @@ class Driller(object):
             return -1
 
         # Write out debug info if desired.
-        if l.level == logging.DEBUG and config.DEBUG_DIR:
+        if logger.level == logging.DEBUG and config.DEBUG_DIR:
             self._write_debug_info()
-        elif l.level == logging.DEBUG and not config.DEBUG_DIR:
-            l.warning("Debug directory is not set. Will not log fuzzing bitmap.")
+        elif logger.level == logging.DEBUG and not config.DEBUG_DIR:
+            logger.warning("Debug directory is not set. Will not log fuzzing bitmap.")
 
         # Update traced.
         if self.redis:
@@ -101,43 +95,42 @@ class Driller(object):
         for i in self._drill_input():
             yield i
 
+    def setup_angr(self):
+        # retrace
+        p = angr.Project(self.binary)
+        # assert p.loader.main_object.os == 'UNIX - System V'
+        with archr.targets.LocalTarget([self.binary], target_cwd=os.path.dirname(self.binary), target_os=p.loader.main_object.os, target_arch=p.arch.name) as target:
+            tracer_bow = archr.arsenal.RRTracerBow(target)
+            r = tracer_bow.fire(testcase=self.input)
+            self.rr_trace_dir = r.trace_dir.name
+
+        # setup trracer
+        new_options = {angr.options.STRICT_PAGE_ACCESS, angr.options.REPLACEMENT_SOLVER} | angr.options.unicorn
+        s = p.factory.blank_state(stdin=angr.SimFileStream, add_options=new_options)
+
+        simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=True)
+
+        t = Trracer(trace_dir=self.rr_trace_dir, keep_predecessors=2)
+
+        self._core = DrrillerrCore()
+
+        simgr.use_technique(t)
+        simgr.use_technique(angr.exploration_techniques.Oppologist())
+        simgr.use_technique(self._core)
+        return simgr
+
     def _drill_input(self):
         """
         Symbolically step down a path with a tracer, trying to concretize inputs for unencountered
         state transitions.
         """
 
-        # initialize the tracer
-        r = tracer.qemu_runner.QEMURunner(self.binary, self.input, argv=self.argv)
-        p = angr.Project(self.binary)
-        for addr, proc in self._hooks.items():
-            p.hook(addr, proc)
-            l.debug("Hooking %#x -> %s...", addr, proc.display_name)
-
-        if p.loader.main_object.os == 'cgc':
-            p.simos.syscall_library.update(angr.SIM_LIBRARIES['cgcabi_tracer'])
-
-            s = p.factory.entry_state(stdin=angr.SimFileStream, flag_page=r.magic, mode='tracing')
-        else:
-            s = p.factory.full_init_state(stdin=angr.SimFileStream, mode='tracing')
-
-        s.preconstrainer.preconstrain_file(self.input, s.posix.stdin, True)
-
-        simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=r.crash_mode)
-
-        t = angr.exploration_techniques.Tracer(trace=r.trace, mode='permissive', crash_addr=r.crash_addr, copy_states=True)
-        self._core = angr.exploration_techniques.DrillerCore(trace=r.trace)
-
-        simgr.use_technique(t)
-        simgr.use_technique(angr.exploration_techniques.Oppologist())
-        simgr.use_technique(self._core)
-
+        simgr = self.setup_angr()
         self._set_concretizations(simgr.one_active)
+        logger.debug("Drilling into %r.", self.input)
+        logger.debug("Input is %r.", self.input)
 
-        l.debug("Drilling into %r.", self.input)
-        l.debug("Input is %r.", self.input)
-
-        while simgr.active and simgr.one_active.globals['trace_idx'] < len(r.trace) - 1:
+        while simgr.active:
             simgr.step()
 
             # Check here to see if a crash has been found.
@@ -149,14 +142,14 @@ class Driller(object):
 
             while simgr.diverted:
                 state = simgr.diverted.pop(0)
-                l.debug("Found a diverted state, exploring to some extent.")
+                logger.debug("Found a diverted state, exploring to some extent.")
                 w = self._writeout(state.history.bbl_addrs[-1], state)
                 if w is not None:
                     yield w
                 for i in self._symbolic_explorer_stub(state):
                     yield i
 
-### EXPLORER
+    # EXPLORER
 
     def _symbolic_explorer_stub(self, state):
         # Create a new simulation manager and step it forward up to 1024
@@ -166,13 +159,16 @@ class Driller(object):
 
         p = state.project
         state = state.copy()
+        state.trace_replay_overrides.dirty_overrides = []
+        state.trace_replay_overrides.syscall_overrides = []
         try:
             state.options.remove(angr.options.LAZY_SOLVES)
         except KeyError:
             pass
         simgr = p.factory.simulation_manager(state, hierarchy=False)
+        simgr.use_technique(angr.exploration_techniques.Oppologist())
 
-        l.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
+        logger.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
 
         while len(simgr.active) and accumulated < 1024:
             simgr.step()
@@ -181,7 +177,7 @@ class Driller(object):
             # Dump all inputs.
             accumulated = steps * (len(simgr.active) + len(simgr.deadended))
 
-        l.debug("[%s] stopped symbolic exploration at %s.", self.identifier, time.ctime())
+        logger.debug("[%s] stopped symbolic exploration at %s.", self.identifier, time.ctime())
 
         # DO NOT think this is the same as using only the deadended stashes. this merges deadended and active
         simgr.stash(from_stash='deadended', to_stash='active')
@@ -196,7 +192,7 @@ class Driller(object):
             except IndexError:
                 pass
 
-### UTILS
+    # UTILS
 
     @staticmethod
     def _set_concretizations(state):
@@ -253,7 +249,7 @@ class Driller(object):
         else:
             self._add_to_catalogue(*key)
 
-        l.debug("[%s] dumping input for %#x -> %#x.", self.identifier, prev_addr, state.addr)
+        logger.debug("[%s] dumping input for %#x -> %#x.", self.identifier, prev_addr, state.addr)
 
         self._generated.add((key, generated))
 
@@ -264,9 +260,9 @@ class Driller(object):
             self.redis.publish(channel, pickle.dumps({'meta': key, 'data': generated, "tag": self.tag}))
 
         else:
-            l.debug("Generated: %s", binascii.hexlify(generated))
+            logger.debug("Generated: %s", binascii.hexlify(generated))
 
-        return (key, generated)
+        return key, generated
 
     def _write_debug_info(self):
         m = hashlib.md5()
@@ -274,8 +270,8 @@ class Driller(object):
         f_name = os.path.join(config.DEBUG_DIR, self.identifier + '_' + m.hexdigest() + '.py')
 
         with open(f_name, 'w+') as f:
-            l.debug("Debug log written to %s.", f_name)
-            f.write("binary = %r\n" % self.binary
+            logger.debug("Debug log written to %s.", f_name)
+            f.write("rr_trace_dir = %r\n" % self.rr_trace_dir
                     + "started = '%s'\n" % time.ctime(self.start_time)
                     + "input = %r\n" % self.input
                     + "fuzz_bitmap = %r" % self.fuzz_bitmap)
