@@ -13,6 +13,7 @@ class UniqueSearch(PrioritizationTechnique):
     def update(self, seeds):
         super(UniqueSearch, self).update(seeds=seeds)
 
+        seeds = [s for s in seeds if 'driller' not in s]
         if all([s in self.uniqueness for s in seeds]): return
 
         # clean up

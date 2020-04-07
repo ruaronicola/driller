@@ -15,6 +15,7 @@ class HardestSearch(PrioritizationTechnique):
     def update(self, seeds):
         super(HardestSearch, self).update(seeds=seeds)
 
+        seeds = [s for s in seeds if 'driller' not in s]
         new_seeds = [s for s in seeds if s not in self.hardness]
         if len(new_seeds) == 0: return
 
