@@ -1,16 +1,20 @@
 from . import PrioritizationTechnique
 
 import os
-import np
+import networkx as nx
+import numpy as np
+import angr
+import pickle
 
 class SyMLSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch, classifier):
-        super(UniqueSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch)
+    def __init__(self, binary, target_os, target_arch):
+        super(SyMLSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch)
         
         # static analysis
-        dscout_bow = archr.arsenal.DataScoutBow(self.target)
-        proj_bow = archr.arsenal.angrProjectBow(self.target, dscout_bow)
-        project = proj_bow.fire(auto_load_libs=False)
+        #dscout_bow = archr.arsenal.DataScoutBow(self.target)
+        #proj_bow = archr.arsenal.angrProjectBow(self.target, dscout_bow)
+        #project = proj_bow.fire(auto_load_libs=False)
+        project = angr.Project(binary, auto_load_libs=False)
         cfg = project.analyses.CFGFast(fail_fast=True, normalize=True, objects=[project.loader.main_object]).model
         self.centr = {n.addr: np.around(centr, 3) for n, centr in nx.betweenness_centrality(cfg.graph, min(len(cfg.graph.nodes), 400)).items()}
         self.conn = {n.addr: conn for n, conn in cfg.graph.degree}
@@ -28,21 +32,23 @@ class SyMLSearch(PrioritizationTechnique):
         self.score = dict()
         
         classifier_path = f"{os.path.dirname(os.path.realpath(binary))}/classifiers/xgb.{os.path.basename(binary)}.pkl"
-        self.classifier = pickle.load(classifier_path)
+        with open(classifier_path, 'rb') as f:
+            self.classifier = pickle.load(f)
 
     def update(self, seeds):
-        super(UniqueSearch, self).update(seeds=seeds)
+        super(SyMLSearch, self).update(seeds=seeds)
 
-        seeds = [s for s in seeds if 'driller' not in s]
         if all([s in self.score for s in seeds]): return
 
         for s in seeds:
             # trace
-            trace = self.trace(s, calls=True, syscalls=True)
-            # extract features
-            x = self.get_features(trace)
-            # update score
-            self.score[seed] = self.classifier.predict_proba(x)[:, 1]
+            try:
+                trace = self.trace(s, calls=True, syscalls=True)
+                # extract features
+                x = self.get_features(trace)
+                # update score
+                self.score[s] = self.classifier.predict_proba(x)[0, 1]
+            except: self.score[seed] = 0.0
 
     def pop_best(self, not_drilled):
         best = max({k:v for k,v in self.score.items() if k in not_drilled}, key=self.score.get)

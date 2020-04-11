@@ -13,7 +13,6 @@ class UniqueSearch(PrioritizationTechnique):
     def update(self, seeds):
         super(UniqueSearch, self).update(seeds=seeds)
 
-        seeds = [s for s in seeds if 'driller' not in s]
         if all([s in self.uniqueness for s in seeds]): return
 
         # clean up
@@ -48,8 +47,10 @@ class UniqueSearch(PrioritizationTechnique):
         :param seed_b: The second seed to compare
         """
         if seed_a == seed_b: return 1.0
-        count_a = Counter(self.trace(seed_a))
-        count_b = Counter(self.trace(seed_b))
-        normal_distance = sum((count_a.get(addr, 0) - count_b.get(addr, 0)) ** 2
-                              for addr in set(list(count_a.keys()) + list(count_b.keys()))) ** 0.5
-        return 1.0 / (1 + normal_distance)
+        try:
+            count_a = Counter(self.trace(seed_a))
+            count_b = Counter(self.trace(seed_b))
+            normal_distance = sum((count_a.get(addr, 0) - count_b.get(addr, 0)) ** 2
+                                  for addr in set(list(count_a.keys()) + list(count_b.keys()))) ** 0.5
+            return 1.0 / (1 + normal_distance)
+        except: return 0.0

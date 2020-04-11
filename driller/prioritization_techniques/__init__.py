@@ -1,12 +1,16 @@
 from abc import ABC, abstractmethod
 
 import archr
+import logging
+
+l = logging.getLogger('archr.arsenal.pin')
 
 
 class PrioritizationTechnique(ABC):
     def __init__(self, binary, target_os, target_arch):
         self.binary = binary
         self.traces = dict()
+        self.blacklist = list()
         self.target_os = target_os
         self.target_arch = target_arch
         
@@ -14,13 +18,21 @@ class PrioritizationTechnique(ABC):
         self.tracer_bow = archr.arsenal.PINTracerBow(self.target)
 
     def trace(self, seed, calls=False, syscalls=False):
-        if seed in self.traces:
+        if seed in self.traces: 
             return self.traces[seed]
-        with open(seed, 'rb') as testcase:
-            r = self.tracer_bow.fire(testcase=testcase.read(), main_object_only=True, basic_blocks=True, calls=calls, syscalls=syscalls, timeout=10)
-            trace = [int(line) for line in r.split('\n') if line]
-            self.traces[seed] = trace
-            return trace
+        elif seed in self.blacklist:
+            raise Exception(f"PIN failed to trace {seed}")
+
+        try:
+            with open(seed, 'rb') as testcase:
+                r = self.tracer_bow.fire(testcase=testcase.read(), main_object_only=True, basic_blocks=True, calls=calls, syscalls=syscalls, timeout=15)
+                trace = [int(line) for line in r.split('\n') if line]
+                self.traces[seed] = trace
+                return trace
+        except Exception as e:
+            self.blacklist.append(seed)
+            l.exception(f"PIN failed when tracing {seed}")
+            raise Exception(f"PIN failed to trace {seed}")
 
     def update(self, seeds):
     	# clean up traces
@@ -35,4 +47,4 @@ class PrioritizationTechnique(ABC):
 
 from .unique import UniqueSearch
 from .hardest import HardestSearch
-
+from .syml import SyMLSearch
