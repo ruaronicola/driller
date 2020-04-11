@@ -16,6 +16,9 @@ from .drrillerr_core import DrrillerrCore
 
 
 logger = logging.getLogger("driller.driller")
+logging.getLogger('trraces.syscall_replay').setLevel('ERROR')
+logging.getLogger('trraces.replay_interfaces.angr.setup_state').setLevel('ERROR')
+logging.getLogger('angr.storage.paged_memory').setLevel('ERROR')
 
 
 class Drrillerr(object):
@@ -159,8 +162,8 @@ class Drrillerr(object):
 
         p = state.project
         state = state.copy()
-        state.trace_replay_overrides.dirty_overrides = []
-        state.trace_replay_overrides.syscall_overrides = []
+        state.inspect._breakpoints['dirty'] = []
+        state.inspect._breakpoints['simprocedure'] = []
         try:
             state.options.remove(angr.options.LAZY_SOLVES)
         except KeyError:
