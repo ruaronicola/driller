@@ -102,9 +102,9 @@ class Drrillerr(object):
         # retrace
         p = angr.Project(self.binary)
         # assert p.loader.main_object.os == 'UNIX - System V'
-        with archr.targets.LocalTarget([self.binary], target_cwd=os.path.dirname(self.binary), target_os=p.loader.main_object.os, target_arch=p.arch.name) as target:
+        with archr.targets.LocalTarget([self.binary], target_cwd=os.path.dirname(self.binary), target_os=p.loader.main_object.os, target_arch=p.arch.linux_name) as target:
             tracer_bow = archr.arsenal.RRTracerBow(target)
-            r = tracer_bow.fire(testcase=self.input)
+            r = tracer_bow.fire(testcase=self.input, empty_reads=True)
             self.rr_trace_dir = r.trace_dir.name
 
         # setup trracer
