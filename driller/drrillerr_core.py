@@ -35,7 +35,8 @@ class DrrillerrCore(ExplorationTechnique):
         simgr.step(stash=stash, **kwargs)
 
         for s in simgr.unsat:
-            s.preconstrainer.remove_preconstraints()
+            if len(s.preconstrainer.preconstraints) != 0:
+                s.preconstrainer.remove_preconstraints()
 
         simgr.move(from_stash='unsat', to_stash='missed', filter_func=lambda _s: _s.satisfiable())
         simgr.drop(stash='unsat')
@@ -61,17 +62,18 @@ class DrrillerrCore(ExplorationTechnique):
 
                 logger.debug("Found %#x -> %#x transition.", transition[0], transition[1])
 
-                if not hit and transition not in self.encounters and not self._has_false(state) and not is_extern:
-                    state.preconstrainer.remove_preconstraints()
+                if not hit and transition not in self.encounters and not is_extern and not self._has_false(state):
+                    #if len(state.preconstrainer.preconstraints) != 0:
+                    #    state.preconstrainer.remove_preconstraints()
 
-                    if state.satisfiable():
-                        # A completely new state transition.
-                        logger.debug("Found a completely new transition, putting into 'diverted' stash.")
-                        simgr.stashes['diverted'].append(state)
-                        self.encounters.add(transition)
+                    #if state.satisfiable():
+                    # A completely new state transition.
+                    logger.debug("Found a completely new transition, putting into 'diverted' stash.")
+                    simgr.stashes['diverted'].append(state)
+                    self.encounters.add(transition)
 
-                    else:
-                        logger.debug("State at %#x is not satisfiable.", transition[1])
+                    #else:
+                    #    logger.debug("State at %#x is not satisfiable.", transition[1])
 
                 elif self._has_false(state):
                     logger.debug("State at %#x is not satisfiable even remove preconstraints.", transition[1])

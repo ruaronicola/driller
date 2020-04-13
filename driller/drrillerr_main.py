@@ -14,8 +14,10 @@ from trraces.replay_interfaces.angr.technique import Trracer
 from driller import config
 from .drrillerr_core import DrrillerrCore
 
-
 logger = logging.getLogger("driller.driller")
+
+logging.getLogger('driller.drrillerr_core').setLevel('ERROR')
+logging.getLogger('angr.state_plugins.preconstrainer').setLevel('ERROR')
 logging.getLogger('trraces.syscall_replay').setLevel('ERROR')
 logging.getLogger('trraces.replay_interfaces.angr.setup_state').setLevel('ERROR')
 logging.getLogger('angr.storage.paged_memory').setLevel('ERROR')
@@ -109,7 +111,7 @@ class Drrillerr(object):
 
         # setup trracer
         new_options = {angr.options.STRICT_PAGE_ACCESS, angr.options.REPLACEMENT_SOLVER} | angr.options.unicorn
-        s = p.factory.blank_state(stdin=angr.SimFileStream, add_options=new_options)
+        s = p.factory.blank_state(mode='tracing', stdin=angr.SimFileStream, add_options=new_options)
 
         simgr = p.factory.simulation_manager(s, save_unsat=True, hierarchy=False, save_unconstrained=True)
 
