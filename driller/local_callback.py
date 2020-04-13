@@ -7,7 +7,7 @@ import contextlib
 import time
 import logging.config
 from driller import Driller
-from driller.prioritization_techniques import UniqueSearch, HardestSearch
+from driller.prioritization_techniques import UniqueSearch, HardestSearch, SyMLSearch
 import argparse
 import subprocess
 import multiprocessing
@@ -34,7 +34,7 @@ def _run_drill(drill, fuzz, _path_to_input_to_drill, length_extension=None):
 
 
 class LocalCallback(object):
-    def __init__(self, num_workers=1, worker_timeout=10*60, length_extension=None, prioritization_technique=UniqueSearch):
+    def __init__(self, num_workers=1, worker_timeout=10*60, length_extension=None, technique=UniqueSearch):
         self._already_drilled_inputs = set()
 
         self._num_workers = num_workers
@@ -42,8 +42,7 @@ class LocalCallback(object):
         self._worker_timeout = worker_timeout
         self._length_extension = length_extension
 
-        self.prioritization_technique = prioritization_technique
-        self.t = None
+        self.t = technique
 
     @staticmethod
     def _queue_files(fuzz, fuzzer='fuzzer-master'):
@@ -60,7 +59,7 @@ class LocalCallback(object):
 
     def driller_callback(self, fuzz):
         #l.warning("Driller callback triggered!")
-        if not self.t: self.t = self.prioritization_technique(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch, work_dir=fuzz.work_dir)
+        if self.t.__class__.__name__ == 'ABCMeta': self.t = self.t(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch, work_dir=fuzz.work_dir)
         # remove any workers that aren't running
         self._running_workers = [x for x in self._running_workers if x.is_alive()]
 
@@ -72,7 +71,7 @@ class LocalCallback(object):
 
         # start drilling
         not_drilled = set(queue) - self._already_drilled_inputs
-        self.t.update(not_drilled)
+        self.t.update(list(not_drilled))
 
         if len(not_drilled) == 0:
             l.warning("no inputs left to drill")
