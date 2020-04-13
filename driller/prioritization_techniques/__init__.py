@@ -14,12 +14,13 @@ def threaded(fn):
     return wrapper
 
 class PrioritizationTechnique(ABC):
-    def __init__(self, binary, target_os, target_arch):
+    def __init__(self, binary, target_os, target_arch, work_dir):
         self.binary = binary
         self.traces = dict()
         self.blacklist = list()
         self.target_os = target_os
         self.target_arch = target_arch
+        self.work_dir = work_dir
         
         self.target = archr.targets.LocalTarget([self.binary], target_os=self.target_os, target_arch=self.target_arch)
         self.tracer_bow = archr.arsenal.PINTracerBow(self.target)

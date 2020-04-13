@@ -60,7 +60,7 @@ class LocalCallback(object):
 
     def driller_callback(self, fuzz):
         #l.warning("Driller callback triggered!")
-        if not self.t: self.t = self.prioritization_technique(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch)
+        if not self.t: self.t = self.prioritization_technique(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch, work_dir=fuzz.work_dir)
         # remove any workers that aren't running
         self._running_workers = [x for x in self._running_workers if x.is_alive()]
 

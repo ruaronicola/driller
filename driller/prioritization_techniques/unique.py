@@ -6,8 +6,8 @@ import logging
 l = logging.getLogger("driller.prioritization_techniques.unique")
 
 class UniqueSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch, similarity_func=None):
-        super(UniqueSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch)
+    def __init__(self, binary, target_os, target_arch, work_dir, similarity_func=None):
+        super(UniqueSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch, work_dir=work_dir)
         
         self.uniqueness = dict()
         self.similarity = dict()

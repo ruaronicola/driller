@@ -10,8 +10,8 @@ import logging
 l = logging.getLogger("driller.prioritization_techniques.syml")
 
 class SyMLSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch):
-        super(SyMLSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch)
+    def __init__(self, binary, target_os, target_arch, work_dir):
+        super(SyMLSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch, work_dir=work_dir)
         
         # static analysis
         #dscout_bow = archr.arsenal.DataScoutBow(self.target)
@@ -34,8 +34,7 @@ class SyMLSearch(PrioritizationTechnique):
         
         self.scores = dict()
         
-        classifier_path = f"{os.path.dirname(os.path.realpath(binary))}/classifiers/xgb.{os.path.basename(binary)}.pkl"
-        with open(classifier_path, 'rb') as f:
+        with open(f"{self.work_dir}/driller/classifier.pkl", 'rb') as f:
             self.classifier = pickle.load(f)
             
         self.updating = False
