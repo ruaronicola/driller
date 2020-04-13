@@ -79,6 +79,7 @@ class LocalCallback(object):
 
         while len(self._running_workers) < self._num_workers and len(not_drilled) > 0:
             to_drill_path = self.t.pop_best(not_drilled=not_drilled)
+            if not to_drill_path: return
             not_drilled.remove(to_drill_path)
             self._already_drilled_inputs.add(to_drill_path)
 

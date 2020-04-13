@@ -2,9 +2,16 @@ from abc import ABC, abstractmethod
 
 import archr
 import logging
+import threading
 
 l = logging.getLogger('archr.arsenal.pin')
 
+def threaded(fn):
+    def wrapper(*args, **kwargs):
+        thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
+        thread.start()
+        return thread
+    return wrapper
 
 class PrioritizationTechnique(ABC):
     def __init__(self, binary, target_os, target_arch):

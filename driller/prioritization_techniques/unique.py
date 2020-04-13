@@ -1,6 +1,9 @@
-from . import PrioritizationTechnique
+from . import PrioritizationTechnique, threaded
 
 from collections import Counter
+
+import logging
+l = logging.getLogger("driller.prioritization_techniques.unique")
 
 class UniqueSearch(PrioritizationTechnique):
     def __init__(self, binary, target_os, target_arch, similarity_func=None):
@@ -9,21 +12,28 @@ class UniqueSearch(PrioritizationTechnique):
         self.uniqueness = dict()
         self.similarity = dict()
         self.similarity_func = similarity_func or self.l2_similarity
+        
+        self.updating = False
 
+    @threaded
     def update(self, seeds):
         super(UniqueSearch, self).update(seeds=seeds)
+        
+        new_seeds = [s for s in seeds if s not in self.uniqueness]
+        if self.updating or not new_seeds: return
 
-        if all([s in self.uniqueness for s in seeds]): return
+        self.updating = True
+        l.debug(f"Updating... [{len(new_seeds)}]")
 
         # clean up
-        self.uniqueness = {k:(0,0) for k in seeds}
+        _uniqueness = {k:(0,0) for k in seeds}
         self.similarity = {(a,b):v for (a,b),v in self.similarity.items() if a in seeds and b in seeds}
 
 
         def update_average(seed, new):
-            prev, size = self.uniqueness[seed]
+            prev, size = _uniqueness[seed]
             new_average = float(prev * size + new) / (size + 1)
-            self.uniqueness[seed] = new_average, size + 1
+            _uniqueness[seed] = new_average, size + 1
 
         for a in seeds:
             for b in seeds:
@@ -32,13 +42,13 @@ class UniqueSearch(PrioritizationTechnique):
                 update_average(a, similarity)
                 update_average(b, similarity)
 
-        self.uniqueness = {k:v for k,(v,_) in self.uniqueness.items()}
+        self.uniqueness = {k:v for k,(v,_) in _uniqueness.items()}
+        
+        self.updating = False
 
     def pop_best(self, not_drilled):
-        best = max({k:v for k,v in self.uniqueness.items() if k in not_drilled}, key=self.uniqueness.get)
-        self.uniqueness.pop(best)
-        return best
-
+        candidates = {k:v for k,v in self.uniqueness.items() if k in not_drilled}
+        return max(candidates, key=self.uniqueness.get) if candidates else None
 
     def l2_similarity(self, seed_a, seed_b):
         """

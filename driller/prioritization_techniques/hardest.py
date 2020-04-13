@@ -1,6 +1,9 @@
-from . import PrioritizationTechnique
+from . import PrioritizationTechnique, threaded
 
 from statistics import mean
+
+import logging
+l = logging.getLogger("driller.prioritization_techniques.hardest")
 
 class HardestSearch(PrioritizationTechnique):
     def __init__(self, binary, target_os, target_arch):
@@ -8,15 +11,21 @@ class HardestSearch(PrioritizationTechnique):
 
         self.visits = dict()
         self.hardness = dict()
+        
+        self.updating = False
 
     def get_tuples(self, trace):
         return set(zip(trace[:-1], trace[1:]))
 
+    @threaded
     def update(self, seeds):
         super(HardestSearch, self).update(seeds=seeds)
-
+        
         new_seeds = [s for s in seeds if s not in self.hardness]
-        if len(new_seeds) == 0: return
+        if self.updating or not new_seeds: return
+        
+        self.updating = True
+        l.debug(f"Updating... [{len(new_seeds)}]")
 
         # update visits from new seeds
         for s in new_seeds:
@@ -26,10 +35,6 @@ class HardestSearch(PrioritizationTechnique):
                     self.visits[a] = self.visits.get(a, dict())
                     self.visits[a][b] = self.visits[a].get(b, 0) + 1
             except: pass
-            
-
-        # clean up
-        self.hardness = {k:0. for k in seeds}
 
         # update hardness
         for s in seeds:
@@ -39,8 +44,12 @@ class HardestSearch(PrioritizationTechnique):
                 scores = [self.visits[a][b]/total[a] for a, b in self.get_tuples(trace)]  # if self.visits[a][b]!=total[a]]
                 self.hardness[s] = 1 - mean(scores)
             except: self.hardness[s] = 1.0
+        
+        # clean up
+        self.hardness = {k:self.hardness[k] for k in seeds}
+        
+        self.updating = False
 
     def pop_best(self, not_drilled):
-        best = max({k:v for k,v in self.hardness.items() if k in not_drilled}, key=self.hardness.get)
-        self.hardness.pop(best)
-        return best
+        candidates = {k:v for k,v in self.hardness.items() if k in not_drilled}
+        return max(candidates, key=self.hardness.get) if candidates else None

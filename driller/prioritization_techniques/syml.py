@@ -1,10 +1,13 @@
-from . import PrioritizationTechnique
+from . import PrioritizationTechnique, threaded
 
 import os
 import networkx as nx
 import numpy as np
 import angr
 import pickle
+
+import logging
+l = logging.getLogger("driller.prioritization_techniques.syml")
 
 class SyMLSearch(PrioritizationTechnique):
     def __init__(self, binary, target_os, target_arch):
@@ -29,16 +32,23 @@ class SyMLSearch(PrioritizationTechnique):
             parts = nx.components.number_strongly_connected_components(funcs[f].graph)
             self.func_cpx[f] = edges - nodes + 2 * parts
         
-        self.score = dict()
+        self.scores = dict()
         
         classifier_path = f"{os.path.dirname(os.path.realpath(binary))}/classifiers/xgb.{os.path.basename(binary)}.pkl"
         with open(classifier_path, 'rb') as f:
             self.classifier = pickle.load(f)
+            
+        self.updating = False
 
+    @threaded
     def update(self, seeds):
         super(SyMLSearch, self).update(seeds=seeds)
 
-        if all([s in self.score for s in seeds]): return
+        new_seeds = [s for s in seeds if s not in self.scores]
+        if self.updating or not new_seeds: return
+        
+        self.updating = True
+        l.debug(f"Updating... [{len(new_seeds)}]")
 
         for s in seeds:
             # trace
@@ -46,15 +56,18 @@ class SyMLSearch(PrioritizationTechnique):
                 trace = self.trace(s, calls=True, syscalls=True)
                 # extract features
                 x = self.get_features(trace)
-                # update score
-                self.score[s] = self.classifier.predict_proba(x)[0, 1]
-            except: self.score[seed] = 0.0
+                # update scores
+                self.scores[s] = self.classifier.predict_proba(x)[0, 1]
+            except: self.scores[seed] = 0.0
+                
+        # clean up
+        self.scores = {s:self.scores[s] for s in seeds}
+        
+        self.updating = False
 
     def pop_best(self, not_drilled):
-        best = max({k:v for k,v in self.score.items() if k in not_drilled}, key=self.score.get)
-        self.score.pop(best)
-        return best
-
+        candidates = {k:v for k,v in self.scores.items() if k in not_drilled}
+        return max(candidates, key=self.scores.get) if candidates else None
 
     def get_features(self, trace):
         datapoints = []
