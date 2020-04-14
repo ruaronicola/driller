@@ -12,6 +12,8 @@ import argparse
 import subprocess
 import multiprocessing
 
+from glob import glob
+
 l = logging.getLogger("local_callback")
 logging.getLogger("cle.backends.elf.elf").setLevel("ERROR")
 
@@ -43,28 +45,46 @@ class LocalCallback(object):
         self._length_extension = length_extension
 
         self.t = technique
-
-    @staticmethod
-    def _queue_files(fuzz, fuzzer='fuzzer-master'):
+        self.suspend = False
+        
+        self.seen = list()
+        
+    def _queue_files(self, fuzz, fuzzer='fuzzer-master'):
         '''
         retrieve the current queue of inputs from a fuzzer
         :return: a list of strings which represent a fuzzer's queue
         '''
+        
+        # don't call cmin during update
+        if self.t.updating: raise RuntimeError("Called afl-cmin during update")
 
-        queue_path = os.path.join(fuzz.work_dir, fuzzer, 'queue')
-        queue_files = filter(lambda x: x != ".state" and 'sync:driller' not in x, os.listdir(queue_path))
+        # don't call cmin if we're up-to-date
+        try: 
+            if all([os.path.basename(s) in os.listdir(fuzz.queue_all_dir) for s in glob(f"{fuzz.work_dir}/fuzzer-*/queue/*")]): raise RuntimeError("Already up-to-date")
+        except OSError: pass
+        
+        # queue file after cmin
+        l.debug("[*] Calling afl-cmin...")
+        fuzz.cmin().wait()
+        
+        queue_path = fuzz.queue_min_dir
+        queue_files = filter(lambda x: x != ".state" and 'driller' not in x, os.listdir(queue_path))
         queue_files = [os.path.join(queue_path, q) for q in queue_files]
 
         return queue_files
 
     def driller_callback(self, fuzz):
-        #l.warning("Driller callback triggered!")
-        if self.t.__class__.__name__ == 'ABCMeta': self.t = self.t(binary=fuzz.target, target_os=fuzz.target_os, target_arch=fuzz.target_arch, work_dir=fuzz.work_dir)
+        if self.suspend: return
+        
+        l.debug("Driller callback triggered!")
+        if self.t.__class__.__name__ == 'ABCMeta': self.t = self.t(fuzz=fuzz)
         # remove any workers that aren't running
         self._running_workers = [x for x in self._running_workers if x.is_alive()]
 
         # get the files in queue
-        queue = self._queue_files(fuzz)
+        try: queue = self._queue_files(fuzz)
+        except (RuntimeError, OSError) as e: return
+        
         #for i in range(1, fuzz.fuzz_id):
         #    fname = "fuzzer-%d" % i
         #    queue.extend(self.queue_files(fname))
@@ -133,7 +153,7 @@ if __name__ == "__main__":
         count = 0
         for new_input in d.drill_generator():
             id_num = len(os.listdir(driller_queue_dir))
-            fuzzer_from = args.path_to_input_to_drill.split(fuzzer_out_dir)[1].split("/")[0] + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
+            fuzzer_from = args.path_to_input_to_drill.split("/")[-1].split("}")[0][1:] + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
             filepath = "id:" + ("%d" % id_num).rjust(6, "0") + ",from:" + fuzzer_from
             filepath = os.path.join(driller_queue_dir, filepath)
             with open(filepath, "wb") as f:

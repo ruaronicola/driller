@@ -6,13 +6,11 @@ import logging
 l = logging.getLogger("driller.prioritization_techniques.hardest")
 
 class HardestSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch, work_dir):
-        super(HardestSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch, work_dir=work_dir)
+    def __init__(self, fuzz):
+        super(HardestSearch, self).__init__(fuzz)
 
         self.visits = dict()
         self.hardness = dict()
-        
-        self.updating = False
 
     def get_tuples(self, trace):
         return set(zip(trace[:-1], trace[1:]))

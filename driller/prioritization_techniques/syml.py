@@ -10,14 +10,14 @@ import logging
 l = logging.getLogger("driller.prioritization_techniques.syml")
 
 class SyMLSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch, work_dir):
-        super(SyMLSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch, work_dir=work_dir)
+    def __init__(self, fuzz):
+        super(SyMLSearch, self).__init__(fuzz)
         
         # static analysis
         #dscout_bow = archr.arsenal.DataScoutBow(self.target)
         #proj_bow = archr.arsenal.angrProjectBow(self.target, dscout_bow)
         #project = proj_bow.fire(auto_load_libs=False)
-        project = angr.Project(binary, auto_load_libs=False)
+        project = angr.Project(self.binary, auto_load_libs=False)
         cfg = project.analyses.CFGFast(fail_fast=True, normalize=True, objects=[project.loader.main_object]).model
         self.centr = {n.addr: np.around(centr, 3) for n, centr in nx.betweenness_centrality(cfg.graph, min(len(cfg.graph.nodes), 400)).items()}
         self.conn = {n.addr: conn for n, conn in cfg.graph.degree}
@@ -36,8 +36,6 @@ class SyMLSearch(PrioritizationTechnique):
         
         with open(f"{self.work_dir}/driller/classifier.pkl", 'rb') as f:
             self.classifier = pickle.load(f)
-            
-        self.updating = False
 
     @threaded
     def update(self, seeds):

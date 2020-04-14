@@ -6,14 +6,12 @@ import logging
 l = logging.getLogger("driller.prioritization_techniques.unique")
 
 class UniqueSearch(PrioritizationTechnique):
-    def __init__(self, binary, target_os, target_arch, work_dir, similarity_func=None):
-        super(UniqueSearch, self).__init__(binary=binary, target_os=target_os, target_arch=target_arch, work_dir=work_dir)
+    def __init__(self, fuzz, similarity_func=None):
+        super(UniqueSearch, self).__init__(fuzz)
         
         self.uniqueness = dict()
         self.similarity = dict()
         self.similarity_func = similarity_func or self.l2_similarity
-        
-        self.updating = False
 
     @threaded
     def update(self, seeds):
