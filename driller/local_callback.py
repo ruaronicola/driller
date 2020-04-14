@@ -153,7 +153,7 @@ if __name__ == "__main__":
         count = 0
         for new_input in d.drill_generator():
             id_num = len(os.listdir(driller_queue_dir))
-            fuzzer_from = args.path_to_input_to_drill.split("/")[-1].split("}")[0][1:] + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
+            fuzzer_from = args.path_to_input_to_drill.split("/")[-1].split("}")[0][1:] + ":" + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
             filepath = "id:" + ("%d" % id_num).rjust(6, "0") + ",from:" + fuzzer_from
             filepath = os.path.join(driller_queue_dir, filepath)
             with open(filepath, "wb") as f:
