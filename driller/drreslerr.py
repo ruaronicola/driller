@@ -29,15 +29,17 @@ class Drreslerr(object):
     Driller object, symbolically follows an input looking for new state transitions.
     """
 
-    def __init__(self, binary, input_str, seed_glob="", fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
+    def __init__(self, args, input_str, input_file, seed_glob="", fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
         """
         :param binary     : The binary to be traced.
         :param input_str  : Input string to feed to the binary.
         :param work_dir   : The working directory used by the fuzzer
         """
 
-        self.binary = binary
+        self.args = args
+        self.binary = self.args[0]
         self.input_str = input_str
+        self.input_file = input_file
         self.seed_glob = seed_glob
         
     def drill_generator(self):
@@ -45,7 +47,13 @@ class Drreslerr(object):
         A generator interface to the actual drilling.
         """
         p = angr.Project(self.binary)
-        with archr.targets.LocalTarget([self.binary], target_cwd=os.path.dirname(self.binary), 
+        
+        # deal with input files
+        if "@@" in self.args:
+            assert self.args.count('@@') == 1
+            self.args[self.args.index('@@')] = self.input_file
+        
+        with archr.targets.LocalTarget(self.args, target_cwd=os.path.dirname(self.binary), 
                                        target_os=p.loader.main_object.os, target_arch=p.arch.linux_name) as target:
                 tracer_bow = archr.arsenal.RRTracerBow(target)
                 r = tracer_bow.fire(testcase=self.input_str, empty_reads=True)
