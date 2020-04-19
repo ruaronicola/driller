@@ -96,17 +96,19 @@ class SyMLSearch(PrioritizationTechnique):
                       'num_calls': num_calls, **syscalls}]
 
         # compress datapoints into one-dimensional features
-        x0 = sum([d['num_calls'] for d in datapoints])/len(datapoints)
-        x1 = sum([1 for d in datapoints if d['f_cpx'] > 15])/len(datapoints)
-        x2 = sum([1 for d in datapoints if d['f_cpx'] > 30])/len(datapoints)
-        x3 = sum([1 for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/len(datapoints)
-        x4 = sum([1 for d in datapoints if d['centr'] > 0.1])/len(datapoints)
-        x5 = sum([d['S_FS'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_FS'] for d in datapoints]))
-        x6 = sum([d['S_IPC'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_IPC'] for d in datapoints]))
-        x7 = sum([d['S_KERNEL'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_KERNEL'] for d in datapoints]))
-        x8 = sum([d['S_MM'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_MM'] for d in datapoints]))
-        x9 = sum([d['S_NET'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_NET'] for d in datapoints]))
-        x10 = sum([d['S_SECURITY'] for d in datapoints if d['f_cpx']/d['f_size'] > 0.1])/(1+sum([d['S_SECURITY'] for d in datapoints]))
+        x0 = sum([d['f_cpx'] for d in data])/len(data)
+        x1 = sum([d['centr'] for d in data])/len(data)
+
+        x2 = sum([1 for d in data if d['f_cpx'] > 30])/len(data)
+        x3 = sum([1 for d in data if d['f_cpx']/d['f_size'] > 0.1])/len(data)
+        x4 = sum([1 for d in data if d['centr'] > 0.1])/len(data)
+        
+        x5 = sum([d['S_FS'] for d in data])/len(data)
+        x6 = sum([d['S_IPC'] for d in data])/len(data)
+        x7 = sum([d['S_KERNEL'] for d in data])/len(data)
+        x8 = sum([d['S_MM'] for d in data])/len(data)
+        x9 = sum([d['S_NET'] for d in data])/len(data)
+        x10 = sum([d['S_SECURITY'] for d in data])/len(data)
         
         return np.array([x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10])
 
