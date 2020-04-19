@@ -51,6 +51,18 @@ class LocalCallback(object):
         
         self.seen = list()
         
+    @staticmethod
+    def new_seeds(fuzz):
+        all_seeds = glob(f"{fuzz.work_dir}/fuzzer-*/queue/*id:*")
+        seen_seeds = os.listdir(fuzz.queue_all_dir)
+
+        for seed in all_seeds:
+            id = seed.split("/")[-1]
+            fuzzer = seed.split("/queue")[0].split("/")[-1]
+            if f"{{{fuzzer}}}{id}" not in seen_seeds:
+                return True
+        return False
+    
     def _queue_files(self, fuzz, fuzzer='fuzzer-master'):
         '''
         retrieve the current queue of inputs from a fuzzer
@@ -62,17 +74,16 @@ class LocalCallback(object):
 
         # don't call cmin if we're up-to-date
         try: 
-            if all([os.path.basename(s) in os.listdir(fuzz.queue_all_dir) for s in glob(f"{fuzz.work_dir}/fuzzer-*/queue/*")]): raise RuntimeError("Already up-to-date")
+            if not self.new_seeds(fuzz):
+                l.debug("Already up-to-date")
+                raise RuntimeError("Already up-to-date")
         except OSError: pass
         
         # queue file after cmin
         l.debug("[*] Calling afl-cmin...")
         fuzz.cmin().wait()
         
-        queue_path = fuzz.queue_min_dir
-        queue_files = filter(lambda x: x != ".state" and 'driller' not in x, os.listdir(queue_path))
-        queue_files = [os.path.join(queue_path, q) for q in queue_files]
-
+        queue_files = glob(f"{fuzz.queue_min_dir}/*id:*")
         return queue_files
 
     def driller_callback(self, fuzz):

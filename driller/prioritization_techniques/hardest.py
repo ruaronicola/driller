@@ -41,7 +41,7 @@ class HardestSearch(PrioritizationTechnique):
                 total = {node: sum(self.visits[node].values()) for node in self.visits}
                 scores = [self.visits[a][b]/total[a] for a, b in self.get_tuples(trace)]  # if self.visits[a][b]!=total[a]]
                 self.hardness[s] = 1 - mean(scores)
-            except: self.hardness[s] = 1.0
+            except: self.hardness[s] = 0.5
         
         # clean up
         self.hardness = {k:self.hardness[k] for k in seeds}

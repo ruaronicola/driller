@@ -61,4 +61,4 @@ class UniqueSearch(PrioritizationTechnique):
             normal_distance = sum((count_a.get(addr, 0) - count_b.get(addr, 0)) ** 2
                                   for addr in set(list(count_a.keys()) + list(count_b.keys()))) ** 0.5
             return 1.0 / (1 + normal_distance)
-        except: return 0.0
+        except: return 0.5

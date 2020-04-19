@@ -55,7 +55,7 @@ class SyMLSearch(PrioritizationTechnique):
                 x = self.get_features(trace)
                 # update scores
                 self.scores[s] = self.classifier.predict_proba(x)[0, 1]
-            except: self.scores[seed] = 0.0
+            except: self.scores[s] = 0.5
                 
         # clean up
         self.scores = {s:self.scores[s] for s in seeds}

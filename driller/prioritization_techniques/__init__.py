@@ -36,7 +36,7 @@ class PrioritizationTechnique(ABC):
         try:
             with open(seed, 'rb') as testcase:
                 r = self.tracer_bow.fire(testcase=testcase.read(), main_object_only=True, branches_only=True, basic_blocks=True, calls=calls, syscalls=syscalls, timeout=30)
-                trace = [int(line) for line in r.split('\n') if line]
+                trace = [line if (calls or syscalls) else int(line) for line in r.split('\n') if line]
                 self.traces[seed] = trace
                 return trace
         except Exception as e:
