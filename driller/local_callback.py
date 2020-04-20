@@ -162,11 +162,11 @@ if __name__ == "__main__":
     #    inputs_to_drill.append(inputs_to_drill[0] + b'\0' * args.length_extension)
 
     #for input_to_drill in inputs_to_drill:
-    d = Driller(args=fuzzer_cmdline, input_str=input_to_drill, input_file=input_file_to_drill, seed_glob=f"{args.fuzzer_out_dir}/*/queue/id:*")  #fuzz_bitmap=fuzzer_bitmap)
+    d = Driller(binary=fuzzer_cmdline[0], input_str=input_to_drill, fuzz_bitmap=fuzzer_bitmap)  #fuzz_bitmap=fuzzer_bitmap)
     count = 0
     for new_input in d.drill_generator():
         id_num = len(os.listdir(driller_queue_dir))
-        fuzzer_from = args.path_to_input_to_drill.split("/")[-1].split("}")[0][1:] + ":" + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
+        fuzzer_from = args.path_to_input_to_drill.split("/")[-1].split("}")[0][1:] + ",src:" + args.path_to_input_to_drill.split("id:")[1].split(",")[0]
         filepath = "id:" + ("%d" % id_num).rjust(6, "0") + ",from:" + fuzzer_from
         filepath = os.path.join(driller_queue_dir, filepath)
         with open(filepath, "wb") as f:
