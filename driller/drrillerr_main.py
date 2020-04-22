@@ -136,7 +136,8 @@ class Drrillerr(object):
         logger.debug("Input is %r.", self.input)
 
         while simgr.active:
-            simgr.step()
+            try: simgr.step()
+            except: return
 
             # Check here to see if a crash has been found.
             if self.redis and self.redis.sismember(self.identifier + '-finished', True):
@@ -176,7 +177,9 @@ class Drrillerr(object):
         logger.debug("[%s] started symbolic exploration at %s.", self.identifier, time.ctime())
 
         while len(simgr.active) and accumulated < 1024:
-            simgr.step()
+            try: simgr.step()
+            except: break
+            
             steps += 1
 
             # Dump all inputs.

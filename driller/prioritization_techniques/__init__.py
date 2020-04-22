@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 
+import os
 import archr
 import logging
 import threading
 
-l = logging.getLogger('archr.arsenal.pin')
+l = logging.getLogger(__name__)
 
 def threaded(fn):
     def wrapper(*args, **kwargs):
@@ -21,6 +22,10 @@ class PrioritizationTechnique(ABC):
         self.target_os = fuzz.target_os
         self.target_arch = fuzz.target_arch
         self.work_dir = fuzz.work_dir
+        
+        self.bitmap_path = os.path.join(fuzz.work_dir, 'fuzzer-master', "fuzz_bitmap")
+        self.fuzz_bitmap = open(self.bitmap_path, "rb").read()
+        self.fuzz_bitmap = bytes([ b ^ 0xff for b in self.fuzz_bitmap ])
         
         self.target = archr.targets.LocalTarget([self.binary], target_os=self.target_os, target_arch=self.target_arch)
         self.tracer_bow = archr.arsenal.PINTracerBow(self.target)
