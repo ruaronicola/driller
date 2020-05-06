@@ -14,16 +14,15 @@ class SyMLSearch(PrioritizationTechnique):
         super(SyMLSearch, self).__init__(fuzz)
         
         # static analysis
-        #dscout_bow = archr.arsenal.DataScoutBow(self.target)
-        #proj_bow = archr.arsenal.angrProjectBow(self.target, dscout_bow)
-        #project = proj_bow.fire(auto_load_libs=False)
-        project = angr.Project(self.binary, auto_load_libs=False)
-        cfg = project.analyses.CFGFast(fail_fast=True, normalize=True, objects=[project.loader.main_object]).model
-        self.centr = {n.addr: np.around(centr, 3) for n, centr in nx.betweenness_centrality(cfg.graph, min(len(cfg.graph.nodes), 400)).items()}
-        self.conn = {n.addr: conn for n, conn in cfg.graph.degree}
+        self.cfg = self.cfg or self.proj.analyses.CFG(fail_fast=True, normalize=True, 
+                                                      objects=[self.proj.loader.main_object], 
+                                                      resolve_indirect_jumps=True, collect_data_references=True)
+        self.cfg = self.cfg.model
+        self.centr = {n.addr: np.around(centr, 3) for n, centr in nx.betweenness_centrality(self.cfg.graph, min(len(self.cfg.graph.nodes), 400)).items()}
+        self.conn = {n.addr: conn for n, conn in self.cfg.graph.degree}
         
-        funcs = cfg.project.kb.functions
-        self.func_addrs = {n.addr: n.function_address for n in cfg.nodes()}
+        funcs = self.proj.kb.functions
+        self.func_addrs = {n.addr: n.function_address for n in self.cfg.nodes()}
         self.func_size = {f: funcs[f].size for f in funcs}
         self.func_cpx = dict()
         for f in funcs:
@@ -47,7 +46,7 @@ class SyMLSearch(PrioritizationTechnique):
         self.updating = True
         l.debug(f"Updating... [{len(new_seeds)}]")
 
-        for s in seeds:
+        for s in new_seeds:
             # trace
             try:
                 trace = self.trace(s, calls=True, syscalls=True)
@@ -59,6 +58,7 @@ class SyMLSearch(PrioritizationTechnique):
                 
         # clean up
         self.scores = {s:self.scores[s] for s in seeds}
+        self.traces = {}
         
         self.updating = False
 

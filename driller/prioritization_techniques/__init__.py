@@ -28,6 +28,8 @@ class PrioritizationTechnique(ABC):
         self.fuzz_bitmap = bytes([ b ^ 0xff for b in self.fuzz_bitmap ])
         
         self.target = archr.targets.LocalTarget([self.binary], target_os=self.target_os, target_arch=self.target_arch)
+        self.proj = fuzz.proj
+        self.cfg = fuzz.cfg
         self.tracer_bow = archr.arsenal.PINTracerBow(self.target)
         
         self.updating = False

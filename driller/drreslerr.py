@@ -29,7 +29,7 @@ class Drreslerr(object):
     Driller object, symbolically follows an input looking for new state transitions.
     """
 
-    def __init__(self, args, input_str, input_file, seed_glob="", fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
+    def __init__(self, args, input_str, input_file=None, seed_glob="", fuzz_bitmap=None, tag=None, redis=None, hooks=None, argv=None):
         """
         :param binary     : The binary to be traced.
         :param input_str  : Input string to feed to the binary.
